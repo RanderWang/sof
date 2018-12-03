@@ -38,25 +38,13 @@
 #include <arch/task.h>
 
 /** \brief IRQ low task data pointer. */
-static struct irq_task *irq_low_task;
+struct irq_task *irq_task[PLATFORM_IRQ_TASK_LEVEL];
 
-/** \brief IRQ medium task data pointer. */
-static struct irq_task *irq_med_task;
+int task_irq[] = {PLATFORM_IRQ_TASK_LOW,
+			 PLATFORM_IRQ_TASK_HIGH,
+			 PLATFORM_IRQ_TASK_MED};
 
-/** \brief IRQ high task data pointer. */
-static struct irq_task *irq_high_task;
-
-struct irq_task **task_irq_low_get(void)
+struct irq_task **task_irq_get(int level)
 {
-	return &irq_low_task;
-}
-
-struct irq_task **task_irq_med_get(void)
-{
-	return &irq_med_task;
-}
-
-struct irq_task **task_irq_high_get(void)
-{
-	return &irq_high_task;
+	return &irq_task[level];
 }

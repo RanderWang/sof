@@ -44,6 +44,10 @@
 #include <sof/debug.h>
 #include <sof/alloc.h>
 
+#define IRQ_TASK_LOW	0
+#define IRQ_TASK_HIGH	1
+#define IRQ_TASK_MED	2
+
 /** \brief IRQ task data. */
 struct irq_task {
 	spinlock_t lock;	/**< lock */
@@ -52,28 +56,19 @@ struct irq_task {
 };
 
 /**
- * \brief Returns IRQ low task data.
- * \return Pointer to pointer of IRQ low task data.
+ * \brief Returns IRQ task data.
+ * \return Pointer to pointer of IRQ task data.
  */
-struct irq_task **task_irq_low_get(void);
-
-/**
- * \brief Returns IRQ medium task data.
- * \return Pointer to pointer of IRQ medium task data.
- */
-struct irq_task **task_irq_med_get(void);
-
-/**
- * \brief Returns IRQ high task data.
- * \return Pointer to pointer of IRQ high task data.
- */
-struct irq_task **task_irq_high_get(void);
+struct irq_task **task_irq_get(int level);
 
 /**
  * \brief Retrieves task IRQ level.
  * \param[in,out] task Task data.
  * \return IRQ level.
  */
+
+extern int task_irq[];
+
 static inline uint32_t task_get_irq(struct task *task)
 {
 	uint32_t irq;
@@ -102,24 +97,27 @@ static inline void task_set_data(struct task *task)
 {
 	struct list_item *dst = NULL;
 	struct irq_task *irq_task;
+	int level;
 	uint32_t flags;
 
 	switch (task->priority) {
 	case TASK_PRI_MED + 1 ... TASK_PRI_LOW:
-		irq_task = *task_irq_low_get();
-		dst = &irq_task->list;
+		level = IRQ_TASK_LOW;
 		break;
 	case TASK_PRI_HIGH ... TASK_PRI_MED - 1:
-		irq_task = *task_irq_high_get();
-		dst = &irq_task->list;
+		level = IRQ_TASK_HIGH;
 		break;
 	case TASK_PRI_MED:
 	default:
-		irq_task = *task_irq_med_get();
-		dst = &irq_task->list;
+		if (PLATFORM_IRQ_TASK_LEVEL > 2)
+			level = IRQ_TASK_MED;
+		else
+			level = IRQ_TASK_LOW;
 		break;
 	}
 
+	irq_task = *task_irq_get(level);
+	dst = &irq_task->list;
 	spin_lock_irq(&irq_task->lock, flags);
 	list_item_append(&task->irq_list, dst);
 	spin_unlock_irq(&irq_task->lock, flags);
@@ -176,29 +174,15 @@ static inline void arch_run_task(struct task *task)
  */
 static inline int arch_allocate_tasks(void)
 {
-	/* irq low */
-	struct irq_task **low = task_irq_low_get();
-	*low = rzalloc(RZONE_SYS, SOF_MEM_CAPS_RAM, sizeof(**low));
+	int i;
+	for (i = 0; i < PLATFORM_IRQ_TASK_LEVEL; i++) {
+		struct irq_task **task = task_irq_get(i);
+		*task = rzalloc(RZONE_SYS, SOF_MEM_CAPS_RAM, sizeof(**task));
 
-	list_init(&((*low)->list));
-	spinlock_init(&((*low)->lock));
-	(*low)->irq = PLATFORM_IRQ_TASK_LOW;
-
-	/* irq medium */
-	struct irq_task **med = task_irq_med_get();
-	*med = rzalloc(RZONE_SYS, SOF_MEM_CAPS_RAM, sizeof(**med));
-
-	list_init(&((*med)->list));
-	spinlock_init(&((*med)->lock));
-	(*med)->irq = PLATFORM_IRQ_TASK_MED;
-
-	/* irq high */
-	struct irq_task **high = task_irq_high_get();
-	*high = rzalloc(RZONE_SYS, SOF_MEM_CAPS_RAM, sizeof(**high));
-
-	list_init(&((*high)->list));
-	spinlock_init(&((*high)->lock));
-	(*high)->irq = PLATFORM_IRQ_TASK_HIGH;
+		list_init(&((*task)->list));
+		spinlock_init(&((*task)->lock));
+		(*task)->irq = task_irq[i];
+	}
 
 	return 0;
 }
@@ -209,33 +193,19 @@ static inline int arch_allocate_tasks(void)
 static inline void arch_free_tasks(void)
 {
 	uint32_t flags;
+	int i;
 /* TODO: do not want to free the tasks, just the entire heap */
+
 	/* free IRQ low task */
-	struct irq_task **low = task_irq_low_get();
+	for(i = 0; i < PLATFORM_IRQ_TASK_LEVEL; i++) {
+		struct irq_task **task = task_irq_get(i);
 
-	spin_lock_irq(&(*low)->lock, flags);
-	interrupt_disable(PLATFORM_IRQ_TASK_LOW);
-	interrupt_unregister(PLATFORM_IRQ_TASK_LOW);
-	list_item_del(&(*low)->list);
-	spin_unlock_irq(&(*low)->lock, flags);
-
-	/* free IRQ medium task */
-	struct irq_task **med = task_irq_med_get();
-
-	spin_lock_irq(&(*med)->lock, flags);
-	interrupt_disable(PLATFORM_IRQ_TASK_MED);
-	interrupt_unregister(PLATFORM_IRQ_TASK_MED);
-	list_item_del(&(*med)->list);
-	spin_unlock_irq(&(*med)->lock, flags);
-
-	/* free IRQ high task */
-	struct irq_task **high = task_irq_high_get();
-
-	spin_lock_irq(&(*high)->lock, flags);
-	interrupt_disable(PLATFORM_IRQ_TASK_HIGH);
-	interrupt_unregister(PLATFORM_IRQ_TASK_HIGH);
-	list_item_del(&(*high)->list);
-	spin_unlock_irq(&(*high)->lock, flags);
+		spin_lock_irq(&(*task)->lock, flags);
+		interrupt_disable(task_irq[i]);
+		interrupt_unregister(task_irq[i]);
+		list_item_del(&(*task)->list);
+		spin_unlock_irq(&(*task)->lock, flags);
+	}
 }
 
 /**
@@ -243,20 +213,12 @@ static inline void arch_free_tasks(void)
  */
 static inline int arch_assign_tasks(void)
 {
-	/* irq low */
-	interrupt_register(PLATFORM_IRQ_TASK_LOW, IRQ_AUTO_UNMASK, _irq_task,
-			   task_irq_low_get());
-	interrupt_enable(PLATFORM_IRQ_TASK_LOW);
-
-	/* irq medium */
-	interrupt_register(PLATFORM_IRQ_TASK_MED, IRQ_AUTO_UNMASK, _irq_task,
-			   task_irq_med_get());
-	interrupt_enable(PLATFORM_IRQ_TASK_MED);
-
-	/* irq high */
-	interrupt_register(PLATFORM_IRQ_TASK_HIGH, IRQ_AUTO_UNMASK, _irq_task,
-			   task_irq_high_get());
-	interrupt_enable(PLATFORM_IRQ_TASK_HIGH);
+	int i;
+	for (i = 0; i < PLATFORM_IRQ_TASK_LEVEL; i++) {
+		interrupt_register(task_irq[i], IRQ_AUTO_UNMASK, _irq_task,
+				   task_irq_get(i));
+		interrupt_enable(task_irq[i]);
+	}
 
 	return 0;
 }

@@ -39,23 +39,21 @@
 #include <arch/cpu.h>
 #include <arch/task.h>
 
-struct irq_task **task_irq_low_get(void)
+int task_irq[] = {PLATFORM_IRQ_TASK_LOW,
+			 PLATFORM_IRQ_TASK_HIGH,
+			 PLATFORM_IRQ_TASK_MED};
+
+struct irq_task **task_irq_get(int level)
 {
 	struct core_context *ctx = (struct core_context *)cpu_read_threadptr();
 
-	return &ctx->irq_low_task;
-}
-
-struct irq_task **task_irq_med_get(void)
-{
-	struct core_context *ctx = (struct core_context *)cpu_read_threadptr();
-
-	return &ctx->irq_med_task;
-}
-
-struct irq_task **task_irq_high_get(void)
-{
-	struct core_context *ctx = (struct core_context *)cpu_read_threadptr();
-
-	return &ctx->irq_high_task;
+	switch (level) {
+	case IRQ_TASK_LOW:
+		return &ctx->irq_low_task;
+	case IRQ_TASK_HIGH:
+		return &ctx->irq_high_task;
+	case IRQ_TASK_MED:
+	default:
+		return &ctx->irq_med_task;
+	}
 }
