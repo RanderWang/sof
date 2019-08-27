@@ -676,6 +676,7 @@ static int dai_position(struct comp_dev *dev, struct sof_ipc_stream_posn *posn)
 
 static int dai_config(struct comp_dev *dev, struct sof_ipc_dai_config *config)
 {
+	struct sof_ipc_comp_config *dconfig = COMP_GET_CONFIG(dev);
 	struct dai_data *dd = comp_get_drvdata(dev);
 	int channel = 0;
 	int i;
@@ -773,6 +774,7 @@ static int dai_config(struct comp_dev *dev, struct sof_ipc_dai_config *config)
 		 * it is recalculated in dai_params() later
 		 */
 		dd->frame_bytes = 4;
+		dconfig->frame_fmt = SOF_IPC_FRAME_S32_LE;
 
 		/* As with HDA, the DMA channel is assigned in runtime,
 		 * not during topology parsing.
