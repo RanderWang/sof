@@ -1343,6 +1343,10 @@ static void dmic_stop(struct dai *dai)
 	spin_lock(&dai->lock);
 	dmic->state = COMP_STATE_PREPARE;
 
+	if (dmic->state != COMP_STATE_ACTIVE) {
+		goto out;
+	}
+
 	/* Stop FIFO packers and set FIFO initialize bits */
 	switch (dai->index) {
 	case 0:
@@ -1386,6 +1390,7 @@ static void dmic_stop(struct dai *dai)
 
 	dmic_active_fifos--;
 
+out:
 	spin_unlock(&dai->lock);
 }
 
