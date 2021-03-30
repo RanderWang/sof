@@ -80,6 +80,7 @@ struct ipc_comp_dev {
 
 struct ipc_msg {
 	uint32_t header;	/* specific to platform */
+	uint32_t extension;
 	uint32_t tx_size;	/* payload size in bytes */
 	void *tx_data;		/* pointer to payload data */
 	struct list_item list;
@@ -99,6 +100,8 @@ struct ipc {
 
 	/* processing task */
 	struct task ipc_task;
+
+	int last_ipc_status;
 
 	void *private;
 };
@@ -366,5 +369,8 @@ int ipc_platform_poll_is_host_ready(void);
  * @return 0 if successful error code otherwise.
  */
 int ipc_platform_poll_tx_host_msg(struct ipc_msg *msg);
+
+int sof_ipc4_process_glb_message(uint32_t dd, uint32_t dr);
+int sof_ipc4_process_module_message(uint32_t dd, uint32_t dr);
 
 #endif /* __SOF_DRIVERS_IPC_H__ */

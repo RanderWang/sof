@@ -21,6 +21,7 @@
 #include <sof/schedule/task.h>
 #include <sof/spinlock.h>
 #include <ipc/header.h>
+#include <ipc/header2.h>
 #if CAVS_VERSION >= CAVS_VERSION_1_8
 #include <ipc/header-intel-cavs.h>
 #include <ipc/pm.h>
@@ -137,6 +138,94 @@ static void ipc_irq_handler(void *arg)
 	}
 }
 
+#if CONFIG_CAVS_IPC4
+enum task_state ipc_platform_do_cmd(void *data)
+{
+	struct ipc *ipc = data;
+	uint32_t dr;
+	uint32_t dd;
+
+	dr = ipc_read(IPC_DIPCTDR);
+	dd = ipc_read(IPC_DIPCTDD);
+
+	if ((dr & SOF_IPC4_MSG_TARGET_MASK) == FW_GLB_MSG)
+		ipc->last_ipc_status = sof_ipc4_process_glb_message(dr, dd);
+	else
+		ipc->last_ipc_status = sof_ipc4_process_module_message(dr, dd);
+
+	/* are we about to enter D3 ? */
+	if (ipc->pm_prepare_D3) {
+		platform_shared_commit(ipc, sizeof(*ipc));
+
+		/* no return - memory will be powered off and IPC sent */
+		platform_pm_runtime_power_off();
+	}
+
+	platform_shared_commit(ipc, sizeof(*ipc));
+
+	return SOF_TASK_STATE_COMPLETED;
+}
+
+void ipc_platform_complete_cmd(void *data)
+{
+	struct ipc *ipc = data;
+	uint32_t dr;
+
+	dr = ipc_read(IPC_DIPCTDR);
+	/* write 1 to clear busy, and trigger interrupt to host*/
+	ipc_write(IPC_DIPCTDR, dr | IPC_DIPCTDR_BUSY);
+	ipc_write(IPC_DIPCTDA, ipc_read(IPC_DIPCTDA) | IPC_DIPCTDA_DONE);
+
+	/* unmask Busy interrupt */
+	ipc_write(IPC_DIPCCTL, ipc_read(IPC_DIPCCTL) | IPC_DIPCCTL_IPCTBIE);
+
+	/* FW sends a ipc message to host if request bit is set*/
+	if ((dr & SOF_IPC4_MSG_DIR_MASK) == MSG_REQUEST) {
+		struct ipc_msg msg;
+
+		list_init(&msg.list);
+		msg.header = SOF_IPC4_MSG_DIR(MSG_REPLY);
+		msg.header |= ipc->last_ipc_status & SOF_IPC4_REPLY_STATUS_MASK;
+		msg.extension = 0;
+		msg.tx_size = 0;
+
+		ipc_platform_send_msg(&msg);
+	}
+}
+
+int ipc_platform_send_msg(struct ipc_msg *msg)
+{
+	struct ipc *ipc = ipc_get();
+	int ret = 0;
+
+	if (ipc->is_notification_pending ||
+	    ipc_read(IPC_DIPCIDR) & IPC_DIPCIDR_BUSY ||
+	    ipc_read(IPC_DIPCIDA) & IPC_DIPCIDA_DONE) {
+		ret = -EBUSY;
+		goto out;
+	}
+
+	/* now send the message */
+	if (msg->tx_size)
+		mailbox_dspbox_write(0, msg->tx_data, msg->tx_size);
+
+	list_item_del(&msg->list);
+	tr_dbg(&ipc_tr, "ipc: msg tx -> 0x%x", msg->header);
+
+	ipc->is_notification_pending = true;
+
+	/* now interrupt host to tell it we have message sent */
+	ipc_write(IPC_DIPCIDD, msg->extension);
+	ipc_write(IPC_DIPCIDR, 0x80000000 | msg->header);
+
+	platform_shared_commit(msg, sizeof(*msg));
+
+out:
+	platform_shared_commit(ipc, sizeof(*ipc));
+
+	return ret;
+}
+#else
 #if CAVS_VERSION >= CAVS_VERSION_1_8
 static struct sof_ipc_cmd_hdr *ipc_cavs_read_set_d0ix(uint32_t dr, uint32_t dd)
 {
@@ -288,6 +377,7 @@ out:
 
 	return ret;
 }
+#endif
 
 int platform_ipc_init(struct ipc *ipc)
 {

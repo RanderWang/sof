@@ -35,4 +35,11 @@ config IPC_POLLING
 
 	  If unsure, select "n".
 
+config CAVS_IPC4
+	bool "Enable IPC4 support on CAVS platforms"
+	default n
+	help
+	  Select this to enable IPC4 support on CAVS platforms. This allows
+	  users to choose different IPC version to support different driver.
+
 endmenu # "Drivers"

@@ -5,6 +5,11 @@ add_local_sources(sof
 	handler.c
 )
 
+if (CONFIG_CAVS_IPC4)
+	add_local_sources(sof
+		handler-ipc4.c)
+endif()
+
 if (CONFIG_TRACE)
 	add_local_sources(sof
 		dma-copy.c)
