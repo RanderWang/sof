@@ -12,11 +12,16 @@ add_custom_target(abi2
 set(TPLGS
 	"sof-cnl-nocodec\;sof-cnl-nocodec\;"
 	"cavs-nocodec\;cavs-nocodec\;"
-	"sof-hda-generic-4ch\;sof-hda-generic-4ch\;"
-	"sof-hda-generic-2ch\;sof-hda-generic-2ch\;"
-	"sof-tgl-max98373-rt5682\;sof-tgl-max98373-rt5682\;"
-	"sof-tgl-sdw-max98373-rt5682-2ch\;sof-tgl-sdw-max98373-rt5682-2ch\;"
-	"sof-tgl-sdw-max98373-rt5682-4ch\;sof-tgl-sdw-max98373-rt5682-4ch\;"
+	"cavs-gain-nocodec\;cavs-gain-nocodec\;"
+	#"sof-hda-generic-4ch\;sof-hda-generic-4ch\;"
+	#"sof-hda-generic-2ch\;sof-hda-generic-2ch\;"
+	"cavs-hda-generic-2ch\;cavs-hda-generic-2ch\;"
+	#"sof-tgl-max98373-rt5682\;sof-tgl-max98373-rt5682\;"
+	#"sof-tgl-sdw-max98373-rt5682-2ch\;sof-tgl-sdw-max98373-rt5682-2ch\;"
+	#"sof-tgl-sdw-max98373-rt5682-4ch\;sof-tgl-sdw-max98373-rt5682-4ch\;"
+	"cavs-hda\;cavs-hda\;"
+	"cavs-hdmi\;cavs-hdmi\;"
+	#"cavs-hda-dmic\;cavs-hda-dmic\;"
 )
 
 add_custom_target(topology2 ALL)
