@@ -6,6 +6,7 @@ endif()
 
 add_local_sources(sof
 	ipc-common.c
+	ipc-helper.c
 )
 
 if (CONFIG_TRACE)

@@ -184,4 +184,32 @@ int32_t ipc_comp_pipe_id(const struct ipc_comp_dev *icd);
 int ipc_comp_dai_config(struct ipc *ipc, struct ipc_config_dai *common_config,
 			void *spec_config);
 
+/**
+ * \brief connect component to buffer
+ * @param comp Source component
+ * @param buffer Sink buffer
+ * @return connection status
+ */
+int ipc_comp_to_buffer_connect(struct comp_dev *comp,
+			       struct comp_buffer *buffer);
+
+/**
+ * \brief connect buffer to component
+ * @param buffer Source buffer
+ * @param comp Sink component
+ * @return connection status
+ */
+int ipc_buffer_to_comp_connect(struct comp_buffer *buffer,
+			       struct comp_dev *comp);
+
+/**
+ * \brief verify component params
+ * @param dev Component dev
+ * @param flag Component setting flag
+ * @param params Ipc params
+ * @return verify status
+ */
+int comp_verify_params(struct comp_dev *dev, uint32_t flag,
+		       struct sof_ipc_stream_params *params);
+
 #endif
