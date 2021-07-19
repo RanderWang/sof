@@ -3,4 +3,5 @@
 add_local_sources(sof
 		handler.c
 		helper.c
+		dai.c
 )
